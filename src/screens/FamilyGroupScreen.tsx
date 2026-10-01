@@ -20,7 +20,7 @@ const FamilyGroupScreen: React.FC<Props> = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Family Group Management</Text>
+      <Text style={styles.title}>Gestión de grupos familiares</Text>
 
       <FlatList
         data={familyMembers}
@@ -29,7 +29,7 @@ const FamilyGroupScreen: React.FC<Props> = () => {
       />
 
       <TouchableOpacity style={styles.inviteButton}>
-        <Text style={styles.inviteButtonText}>+ Invite Family Member</Text>
+        <Text style={styles.inviteButtonText}>+ Invitar a un miembro de la familia</Text>
       </TouchableOpacity>
     </View>
   );

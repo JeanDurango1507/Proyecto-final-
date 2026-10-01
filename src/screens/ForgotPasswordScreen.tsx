@@ -25,9 +25,10 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Reset Password</Text>
+      <Text style={styles.title}>Restablecer contraseña</Text>
       <Text style={styles.subtitle}>
-        Enter your registered email address to receive password recovery instructions.
+        Ingrese su dirección de correo electrónico registrada para recibir 
+        las instrucciones de recuperación de contraseña.
       </Text>
 
       <CustomInput

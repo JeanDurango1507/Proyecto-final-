@@ -17,7 +17,7 @@ const AddTransactionScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>New Transaction</Text>
+      <Text style={styles.title}>Nueva Transacción</Text>
 
       <TextInput
         style={styles.input}

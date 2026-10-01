@@ -16,8 +16,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { login } = useAuth();
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+    if (!email.trim() || !password) {
+      Alert.alert('Campos incompletos', 'Por favor ingresa tu correo y contraseña.');
       return;
     }
 
@@ -27,7 +27,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       login(user);
       navigation.navigate('Home');
     } catch (error: any) {
-      Alert.alert('Error de inicio de sesión', error.message || 'Credenciales inválidas');
+      // Muestra la alerta con el mensaje específico (No registrado / Contraseña incorrecta)
+      Alert.alert('Error de inicio de sesión', error.message || 'Ocurrió un error inesperado');
     } finally {
       setLoading(false);
     }
