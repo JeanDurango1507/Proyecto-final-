@@ -4,8 +4,9 @@ import {
   Category,
   Transaction,
   TransactionKind,
-  TransactionScope,
 } from '../types';
+
+type TransactionScope = 'personal' | 'family';
 
 type SaveTransactionInput = {
   title: string;
@@ -96,7 +97,7 @@ export async function listTransactions(): Promise<Transaction[]> {
       amount: row.transaction_type === 'expense' ? -amount : amount,
       category: category?.name ?? 'Sin categoría',
       type: row.scope === 'family' ? 'Family' : 'Personal',
-      transactionType: row.transaction_type,
+      transactionKind: row.transaction_type,
       date: row.occurred_on,
       familyId: row.family_id,
     };
