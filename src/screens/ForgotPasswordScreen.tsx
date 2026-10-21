@@ -4,23 +4,36 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { CustomInput } from '../components/CustomInput';
 import { CustomButton } from '../components/CustomButton';
+import { requestPasswordReset } from '../services/authService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ForgotPassword'>;
 
 const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     if (!email) {
-      Alert.alert('Error', 'Please enter your email address');
+      Alert.alert('Error', 'Ingresa tu correo electrónico.');
       return;
     }
 
-    Alert.alert(
-      'Reset Link Sent',
-      'If an account exists with this email, you will receive instructions to reset your password.',
-      [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-    );
+    setLoading(true);
+    try {
+      await requestPasswordReset(email);
+      Alert.alert(
+        'Revisa tu correo',
+        'Si existe una cuenta con ese correo, recibirás instrucciones para restablecer la contraseña.',
+        [{ text: 'Aceptar', onPress: () => navigation.navigate('Login') }],
+      );
+    } catch (error: unknown) {
+      Alert.alert(
+        'No se pudo enviar el correo',
+        error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -40,7 +53,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
       />
 
       <CustomButton
-        title="Send Reset Link"
+        title={loading ? 'Enviando...' : 'Enviar enlace'}
         onPress={handleResetPassword}
       />
     </View>

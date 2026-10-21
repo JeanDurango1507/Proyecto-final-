@@ -7,8 +7,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'FamilyGroup'>;
 
 const FamilyGroupScreen: React.FC<Props> = () => {
   const familyMembers: FamilyMember[] = [
-    { id: '1', name: 'John Doe', role: 'Admin' },
-    { id: '2', name: 'Jane Doe', role: 'Member' },
+    { id: '1', name: 'Jean Paul', role: 'Admin' },
+    { id: '2', name: 'Jhonathan', role: 'Member' },
+    { id: '3', name: 'Steven', role: 'Member' },
   ];
 
   const renderMemberItem: ListRenderItem<FamilyMember> = ({ item }) => (

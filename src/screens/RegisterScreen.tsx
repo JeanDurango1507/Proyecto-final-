@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, UserRegisterForm } from '../types';
+import { registerUser } from '../services/authService';
+import { useAuth } from '../hooks/useAuth';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
   const [formData, setFormData] = useState<UserRegisterForm>({
     firstName: '',
     lastName: '',
@@ -20,8 +24,40 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleRegister = (): void => {
-    navigation.navigate('Home');
+  const handleRegister = async (): Promise<void> => {
+    if (Object.values(formData).some((value) => !value.trim())) {
+      Alert.alert('Datos incompletos', 'Completa todos los campos.');
+      return;
+    }
+    if (formData.password.length < 6) {
+      Alert.alert('Contraseña inválida', 'La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      Alert.alert('Contraseñas diferentes', 'Confirma que las contraseñas coincidan.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const user = await registerUser(formData);
+      if (user) {
+        login(user);
+      } else {
+        Alert.alert(
+          'Confirma tu correo',
+          'La cuenta se creó. Revisa tu correo y confirma la dirección antes de iniciar sesión.',
+          [{ text: 'Ir a iniciar sesión', onPress: () => navigation.navigate('Login') }],
+        );
+      }
+    } catch (error: unknown) {
+      Alert.alert(
+        'No se pudo crear la cuenta',
+        error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,8 +113,12 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         onChangeText={(text) => handleChange('confirmPassword', text)}
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Registrarse</Text>
+      <TouchableOpacity
+        style={[styles.button, loading && styles.disabledButton]}
+        onPress={handleRegister}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>{loading ? 'Creando cuenta...' : 'Registrarse'}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -89,6 +129,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   input: { borderWidth: 1, borderColor: '#CCC', padding: 12, borderRadius: 8, marginBottom: 12 },
   button: { backgroundColor: '#28A745', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  disabledButton: { opacity: 0.6 },
   buttonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
 });
 

@@ -31,7 +31,16 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+.env
+**/.env
+
+# local duplicate folders
+/DM Proyecto final/
+/Proyecto-final-/
+/OneDrive/
+/.agents/
 
 # typescript
 *.tsbuildinfo
@@ -39,3 +48,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Copias antiguas extraídas dentro del proyecto
+/DM Proyecto final/
+/Proyecto-final-/

@@ -25,9 +25,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const user = await loginUser(email, password);
       login(user);
-      navigation.navigate('Home');
-    } catch (error: any) {
-      Alert.alert('Error de inicio de sesión', error.message || 'Credenciales inválidas');
+    } catch (error: unknown) {
+      Alert.alert(
+        'Error de inicio de sesión',
+        error instanceof Error ? error.message : 'No se pudo iniciar sesión.',
+      );
     } finally {
       setLoading(false);
     }
