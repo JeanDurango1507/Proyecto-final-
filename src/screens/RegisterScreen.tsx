@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import {
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, UserRegisterForm } from '../types';
+import { registerUser } from '../services/authService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
+  const [loading, setLoading] = useState<boolean>(false);
   const [formData, setFormData] = useState<UserRegisterForm>({
     firstName: '',
     lastName: '',
@@ -20,8 +30,28 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleRegister = (): void => {
-    navigation.navigate('Home');
+  const handleRegister = async (): Promise<void> => {
+    if (!formData.firstName || !formData.email || !formData.password) {
+      Alert.alert('Error', 'Por favor llena los campos obligatorios');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      Alert.alert('Error', 'Las contraseñas no coinciden');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await registerUser(formData);
+      Alert.alert('Éxito', 'Usuario registrado correctamente', [
+        { text: 'OK', onPress: () => navigation.navigate('Login') },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Error en el registro', error.message || 'No se pudo conectar con el servidor');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,8 +107,16 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         onChangeText={(text) => handleChange('confirmPassword', text)}
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Registrarse</Text>
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
+        onPress={handleRegister}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFF" />
+        ) : (
+          <Text style={styles.buttonText}>Registrarse</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -89,6 +127,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   input: { borderWidth: 1, borderColor: '#CCC', padding: 12, borderRadius: 8, marginBottom: 12 },
   button: { backgroundColor: '#28A745', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  buttonDisabled: { backgroundColor: '#6C757D' },
   buttonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
 });
 

@@ -1,99 +1,208 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList, Transaction } from '../types';
+import React, { useState, useCallback } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  FlatList,
+  SafeAreaView,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatCurrency } from '../utils/formatCurrency';
+import { useAuth } from '../hooks/useAuth';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+const TRANSACTIONS_KEY = '@app_transactions_list';
 
-// Datos ficticios integrados directamente
-const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: '1', title: 'Supermercado', amount: -85.50, category: 'Comida', date: '2026-09-20', type: 'Personal' },
-  { id: '2', title: 'Pago de Nómina', amount: 1500.00, category: 'Ingreso', date: '2026-09-15', type: 'Personal' },
-  { id: '3', title: 'Servicio de Internet', amount: -45.00, category: 'Servicios', date: '2026-09-10', type: 'Family' },
-];
+export default function HomeScreen({ navigation }: any) {
+  const { user, logout } = useAuth();
+  const [balance, setBalance] = useState<number>(0);
+  const [transactions, setTransactions] = useState<any[]>([]);
 
-const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const loadDashboardData = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(TRANSACTIONS_KEY);
+      const list = stored ? JSON.parse(stored) : [];
+      setTransactions(list);
 
-  useEffect(() => {
-    // Carga simulada
-    const timer = setTimeout(() => {
-      setTransactions(MOCK_TRANSACTIONS);
-      setLoading(false);
-    }, 500);
+      const currentBal = list.reduce((acc: number, item: any) => {
+        const val = Math.abs(item.amount);
+        return item.type === 'income' ? acc + val : acc - val;
+      }, 0);
 
-    return () => clearTimeout(timer);
-  }, []);
+      setBalance(Math.max(0, currentBal));
+    } catch (e) {
+      setBalance(0);
+      setTransactions([]);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [])
+  );
+
+  const renderTransaction = ({ item }: { item: any }) => (
+    <View style={styles.transactionCard}>
+      <View>
+        <Text style={styles.transactionTitle}>{item.title}</Text>
+        <Text style={styles.transactionSub}>
+          {item.date} · {item.type === 'income' ? 'Ingreso' : 'Gasto'}
+        </Text>
+      </View>
+      <Text
+        style={[
+          styles.transactionAmount,
+          { color: item.type === 'income' ? '#16a34a' : '#2563eb' },
+        ]}
+      >
+        ${formatCurrency(item.amount)}
+      </Text>
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.greeting}>¡Hola de nuevo!</Text>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Saldo Total</Text>
-        <Text style={styles.balanceText}>$2,339.50</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.topRow}>
+        <Text style={styles.greeting}>¡Hola, {user?.firstName || 'Jean'}!</Text>
+        <TouchableOpacity onPress={logout}>
+          <Text style={styles.logoutText}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
-      <View style={styles.actionRow}>
+      <View style={styles.balanceCard}>
+        <Text style={styles.balanceLabel}>Saldo de tus movimientos</Text>
+        <Text style={styles.balanceValue}>${formatCurrency(balance)}</Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>Acciones rápidas</Text>
+      <View style={styles.actionsRow}>
         <TouchableOpacity
-          style={styles.actionButton}
+          style={styles.addBtn}
           onPress={() => navigation.navigate('AddTransaction')}
         >
-          <Text style={styles.actionText}>+ Registrar Gasto</Text>
+          <Text style={styles.actionBtnText}>+ Movimiento</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.actionButton}
+          style={styles.groupBtn}
           onPress={() => navigation.navigate('FamilyGroup')}
         >
-          <Text style={styles.actionText}>Grupo Familiar</Text>
+          <Text style={styles.actionBtnText}>Grupos familiares</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionTitle}>Movimientos Recientes</Text>
-      
-      {loading ? (
-        <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
+      <Text style={styles.sectionTitle}>Movimientos recientes</Text>
+      {transactions.length === 0 ? (
+        <Text style={styles.emptyText}>
+          Aún no tienes movimientos. Presiona "+ Movimiento" para comenzar.
+        </Text>
       ) : (
         <FlatList
           data={transactions}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.transactionRow}>
-              <View>
-                <Text style={styles.itemTitle}>{item.title}</Text>
-                <Text style={styles.itemSubtitle}>
-                  {item.type === 'Family' ? 'Familiar' : 'Personal'} • {item.category}
-                </Text>
-              </View>
-              <Text style={item.amount > 0 ? styles.income : styles.expense}>
-                {item.amount > 0 ? `+$${item.amount.toFixed(2)}` : `-$${Math.abs(item.amount).toFixed(2)}`}
-              </Text>
-            </View>
-          )}
+          renderItem={renderTransaction}
+          showsVerticalScrollIndicator={false}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' },
-  greeting: { fontSize: 22, fontWeight: 'bold', marginBottom: 15 },
-  card: { backgroundColor: '#007AFF', padding: 20, borderRadius: 12, marginBottom: 20 },
-  cardTitle: { color: '#E0E0E0', fontSize: 14 },
-  balanceText: { color: '#FFF', fontSize: 32, fontWeight: 'bold', marginTop: 5 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, marginTop: 10 },
-  actionRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  actionButton: { flex: 0.48, backgroundColor: '#34C759', padding: 15, borderRadius: 8, alignItems: 'center' },
-  actionText: { color: '#FFF', fontWeight: 'bold' },
-  transactionRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, backgroundColor: '#FFF', borderRadius: 8, marginBottom: 8 },
-  itemTitle: { fontSize: 16, fontWeight: '500' },
-  itemSubtitle: { fontSize: 12, color: '#888' },
-  income: { color: '#28A745', fontWeight: 'bold', fontSize: 16 },
-  expense: { color: '#DC3545', fontWeight: 'bold', fontSize: 16 },
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    padding: 20,
+  },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  greeting: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0f172a',
+  },
+  logoutText: {
+    color: '#0284c7',
+    fontWeight: '600',
+  },
+  balanceCard: {
+    backgroundColor: '#0066ff',
+    padding: 24,
+    borderRadius: 16,
+    marginBottom: 24,
+  },
+  balanceLabel: {
+    color: '#dbeafe',
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  balanceValue: {
+    color: '#ffffff',
+    fontSize: 34,
+    fontWeight: 'bold',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0f172a',
+    marginBottom: 12,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  addBtn: {
+    flex: 1,
+    backgroundColor: '#22c55e',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  groupBtn: {
+    flex: 1,
+    backgroundColor: '#0066ff',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  actionBtnText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  transactionCard: {
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  transactionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#0f172a',
+  },
+  transactionSub: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  emptyText: {
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 20,
+  },
 });
-
-export default HomeScreen;
