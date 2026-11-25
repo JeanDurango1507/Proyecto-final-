@@ -1,123 +1,245 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
   StyleSheet,
   Text,
-  View,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  Alert,
+  View,
 } from 'react-native';
-import { Camera, CameraView } from 'expo-camera';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { formatCurrency } from '../utils/formatCurrency';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import type { Category, Family, RootStackParamList, TransactionKind, TransactionScope } from '../types';
+import { listFamilies } from '../services/familyService';
+import { listCategories, saveTransaction } from '../services/transactionService';
 
-const TRANSACTIONS_KEY = '@app_transactions_list';
+type Props = NativeStackScreenProps<RootStackParamList, 'AddTransaction'>;
 
-export default function AddTransactionScreen({ navigation }: any) {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [scanned, setScanned] = useState<boolean>(false);
-  const [isScanning, setIsScanning] = useState<boolean>(false);
+const readText = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim().slice(0, 160) : undefined;
 
-  const [title, setTitle] = useState<string>('');
-  const [amount, setAmount] = useState<string>('');
-  const [type, setType] = useState<'income' | 'expense'>('expense');
-  const [currentBalance, setCurrentBalance] = useState<number>(0);
+const readAmount = (value: unknown): string | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return String(value);
+  if (typeof value !== 'string') return undefined;
+
+  const numeric = value.trim().replace(/[^\d,.-]/g, '');
+  if (!numeric || !/\d/.test(numeric)) return undefined;
+  const lastComma = numeric.lastIndexOf(',');
+  const lastDot = numeric.lastIndexOf('.');
+  let normalized = numeric;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    const decimalSeparator = lastComma > lastDot ? ',' : '.';
+    const groupingSeparator = decimalSeparator === ',' ? '.' : ',';
+    normalized = numeric.split(groupingSeparator).join('');
+    if (decimalSeparator === ',') normalized = normalized.replace(',', '.');
+  } else if (lastComma >= 0) {
+    const decimals = numeric.length - lastComma - 1;
+    normalized = decimals > 0 && decimals <= 2
+      ? numeric.slice(0, lastComma).replace(/,/g, '') + `.${numeric.slice(lastComma + 1)}`
+      : numeric.replace(/,/g, '');
+  } else if (lastDot >= 0 && numeric.indexOf('.') !== lastDot) {
+    const decimals = numeric.length - lastDot - 1;
+    normalized = decimals > 0 && decimals <= 2
+      ? numeric.slice(0, lastDot).replace(/\./g, '') + `.${numeric.slice(lastDot + 1)}`
+      : numeric.replace(/\./g, '');
+  }
+
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? String(amount) : undefined;
+};
+
+const AddTransactionScreen: React.FC<Props> = ({ navigation }) => {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isScanning, setIsScanning] = useState(false);
+  const scannedRef = useRef(false);
+  const [title, setTitle] = useState('');
+  const [amount, setAmount] = useState('');
+  const [kind, setKind] = useState<TransactionKind>('expense');
+  const [scope, setScope] = useState<TransactionScope>('personal');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [families, setFamilies] = useState<Family[]>([]);
+  const [familyId, setFamilyId] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingFamilies, setLoadingFamilies] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoadingFamilies(true);
+
+      void listFamilies()
+        .then((result) => {
+          if (!active) return;
+          setFamilies(result);
+          setFamilyId((current) => result.some((family) => family.id === current) ? current : result[0]?.id ?? '');
+        })
+        .catch((error: unknown) => {
+          if (active) {
+            Alert.alert('No se pudieron cargar los grupos familiares', error instanceof Error ? error.message : 'Verifica tu conexión con Supabase.');
+          }
+        })
+        .finally(() => { if (active) setLoadingFamilies(false); });
+
+      return () => { active = false; };
+    }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => () => {
+      scannedRef.current = true;
+      setIsScanning(false);
+    }, []),
+  );
 
   useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
+    let active = true;
+    setLoadingCategories(true);
+    setCategoryId('');
 
-      try {
-        const stored = await AsyncStorage.getItem(TRANSACTIONS_KEY);
-        const list = stored ? JSON.parse(stored) : [];
-        const balance = list.reduce((acc: number, item: any) => {
-          const val = Math.abs(item.amount);
-          return item.type === 'income' ? acc + val : acc - val;
-        }, 0);
-        setCurrentBalance(Math.max(0, balance));
-      } catch (e) {
-        setCurrentBalance(0);
-      }
-    })();
-  }, []);
+    void listCategories(kind)
+      .then((result) => {
+        if (!active) return;
+        setCategories(result);
+        setCategoryId(result[0]?.id ?? '');
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          Alert.alert('No se pudieron cargar las categorías', error instanceof Error ? error.message : 'Verifica tu conexión con Supabase.');
+        }
+      })
+      .finally(() => { if (active) setLoadingCategories(false); });
 
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
-    setScanned(true);
+    return () => { active = false; };
+  }, [kind]);
+
+  const handleBarcodeScanned = (result: BarcodeScanningResult): void => {
+    if (scannedRef.current) return;
+    scannedRef.current = true;
     setIsScanning(false);
+
+    const qrContent = result.data.trim().slice(0, 2000);
     try {
-      const parsed = JSON.parse(data);
-      if (parsed.name || parsed.title) setTitle(parsed.name || parsed.title);
-      if (parsed.amount) setAmount(String(Math.abs(parsed.amount)));
-      setType('expense');
-      Alert.alert('Éxito', 'Factura escaneada correctamente por QR.');
+      const parsed: unknown = JSON.parse(qrContent);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const data = parsed as Record<string, unknown>;
+        const invoice = data.invoice && typeof data.invoice === 'object'
+          ? data.invoice as Record<string, unknown>
+          : data;
+        const scannedTitle = readText(invoice.description) ?? readText(invoice.title) ?? readText(invoice.name) ?? readText(invoice.merchant) ?? readText(invoice.store);
+        const scannedAmount = readAmount(invoice.amount) ?? readAmount(invoice.total) ?? readAmount(invoice.value) ?? readAmount(invoice.totalAmount) ?? readAmount(invoice.valor);
+        if (scannedTitle) setTitle(scannedTitle);
+        if (scannedAmount) setAmount(scannedAmount);
+        setKind('expense');
+        Alert.alert(
+          'Código QR leído',
+          scannedTitle || scannedAmount
+            ? 'Revisa los datos cargados, completa lo que falte y guarda el movimiento en Supabase.'
+            : 'El código no contiene una descripción o monto compatible. Completa los datos manualmente.',
+        );
+        return;
+      }
     } catch {
-      setTitle(`Factura QR: ${data.substring(0, 25)}`);
-      setType('expense');
-      Alert.alert('QR Detectado', 'Ingresa el monto de la factura leída.');
+      // Los códigos de facturas también pueden contener texto o enlaces, no solo JSON.
+    }
+
+    setTitle('Factura escaneada');
+    setKind('expense');
+    Alert.alert('Código QR leído', 'El código no incluye un monto legible. Escribe el monto y la categoría antes de guardar.');
+  };
+
+  const startScan = async (): Promise<void> => {
+    try {
+      if (!permission?.granted) {
+        const result = await requestPermission();
+        if (!result.granted) {
+          const canAskAgain = result.canAskAgain ?? permission?.canAskAgain ?? true;
+          if (canAskAgain) {
+            Alert.alert('Permiso de cámara requerido', 'Autoriza el acceso a la cámara para leer el QR de la factura.');
+          } else {
+            Alert.alert(
+              'Permiso de cámara desactivado',
+              'Activa el permiso de cámara desde los ajustes del dispositivo para leer el QR.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Abrir ajustes', onPress: () => { void Linking.openSettings().catch(() => {}); } },
+              ],
+            );
+          }
+          return;
+        }
+      }
+      scannedRef.current = false;
+      setIsScanning(true);
+    } catch {
+      Alert.alert('No se pudo abrir la cámara', 'Verifica el permiso de cámara del dispositivo e inténtalo de nuevo.');
     }
   };
 
-  const handleSave = async () => {
-    const cleanAmount = Number(amount.replace(/\./g, '').replace(/,/g, ''));
-
-    if (!title.trim() || isNaN(cleanAmount) || cleanAmount <= 0) {
-      Alert.alert('Error', 'Por favor ingresa una descripción y un monto válido.');
+  const handleSave = async (): Promise<void> => {
+    const normalizedAmount = amount.trim();
+    const numericAmount = Number(normalizedAmount.replace(',', '.'));
+    if (!title.trim()) {
+      Alert.alert('Falta la descripción', 'Escribe una descripción para el movimiento.');
+      return;
+    }
+    if (title.trim().length > 160) {
+      Alert.alert('Descripción muy larga', 'Usa una descripción de hasta 160 caracteres.');
+      return;
+    }
+    if (!/^\d{1,12}(?:[.,]\d{1,2})?$/.test(normalizedAmount) || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      Alert.alert('Monto inválido', 'Ingresa un monto positivo con hasta dos decimales y sin separador de miles.');
+      return;
+    }
+    if (!categoryId) {
+      Alert.alert('Falta la categoría', 'Selecciona una categoría para continuar.');
+      return;
+    }
+    if (scope === 'family' && !familyId) {
+      Alert.alert('Falta el grupo familiar', 'Crea o selecciona un grupo para continuar.');
       return;
     }
 
-    if (type === 'expense' && cleanAmount > currentBalance) {
-      Alert.alert(
-        'Saldo Insuficiente',
-        `No puedes gastar más de tu saldo disponible ($${formatCurrency(currentBalance)}).`
-      );
-      return;
-    }
-
+    setSaving(true);
     try {
-      const stored = await AsyncStorage.getItem(TRANSACTIONS_KEY);
-      const list = stored ? JSON.parse(stored) : [];
-
-      const newTx = {
-        id: Date.now().toString(),
-        title: title.trim(),
-        amount: cleanAmount,
-        type,
-        date: new Date().toISOString().split('T')[0],
-      };
-
-      const updatedList = [newTx, ...list];
-      await AsyncStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(updatedList));
-
-      const newBalance = updatedList.reduce((acc: number, item: any) => {
-        const val = Math.abs(item.amount);
-        return item.type === 'income' ? acc + val : acc - val;
-      }, 0);
-
-      Alert.alert(
-        'Registrado',
-        `Movimiento guardado con éxito.\nNuevo saldo: $${formatCurrency(newBalance)}`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
-    } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar el movimiento.');
+      await saveTransaction({
+        title,
+        amount: numericAmount,
+        categoryId,
+        transactionType: kind,
+        scope,
+        familyId: scope === 'family' ? familyId : undefined,
+      });
+      Alert.alert('Movimiento guardado', 'El registro se guardó en Supabase.', [
+        { text: 'Aceptar', onPress: () => navigation.goBack() },
+      ]);
+    } catch (error: unknown) {
+      Alert.alert('No se pudo guardar', error instanceof Error ? error.message : 'Verifica la conexión y vuelve a intentarlo.');
+    } finally {
+      setSaving(false);
     }
   };
 
   if (isScanning) {
     return (
-      <View style={styles.container}>
+      <View style={styles.scannerContainer}>
         <CameraView
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{ barcodeTypes: ['qr', 'pdf417'] }}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          facing="back"
+          onBarcodeScanned={handleBarcodeScanned}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          style={StyleSheet.absoluteFill}
         />
         <View style={styles.scannerOverlay}>
           <Text style={styles.scannerInstruction}>Enfoca el código QR de la factura</Text>
+          <View style={styles.scanFrame} />
           <TouchableOpacity style={styles.cancelScanButton} onPress={() => setIsScanning(false)}>
-            <Text style={styles.cancelScanText}>Cancelar Escaneo</Text>
+            <Text style={styles.cancelScanText}>Cancelar escaneo</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -125,192 +247,108 @@ export default function AddTransactionScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Registrar Movimiento</Text>
-        <Text style={styles.balanceBadge}>Disponible: ${formatCurrency(currentBalance)}</Text>
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <Text style={styles.title}>Nuevo movimiento</Text>
+
+      <Text style={styles.label}>Descripción</Text>
+      <TextInput style={styles.input} placeholder="Ej. Compra del mercado" value={title} onChangeText={setTitle} maxLength={160} />
+
+      <Text style={styles.label}>Monto</Text>
+      <TextInput style={styles.input} placeholder="$0,00" keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
+
+      <Text style={styles.label}>Tipo</Text>
+      <View style={styles.optionRow}>
+        {(['expense', 'income'] as const).map((option) => (
+          <TouchableOpacity key={option} style={[styles.option, kind === option && styles.activeOption]} onPress={() => setKind(option)}>
+            <Text style={[styles.optionText, kind === option && styles.activeOptionText]}>{option === 'expense' ? 'Gasto' : 'Ingreso'}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <View style={styles.formContainer}>
-        <View style={styles.typeSelector}>
-          <TouchableOpacity
-            style={[styles.typeButton, type === 'income' && styles.incomeActive]}
-            onPress={() => setType('income')}
-          >
-            <Text style={[styles.typeText, type === 'income' && styles.typeTextActive]}>+ Ingreso</Text>
+      {kind === 'expense' ? (
+        <TouchableOpacity style={styles.qrButton} onPress={() => { void startScan(); }} accessibilityRole="button">
+          <Text style={styles.qrButtonText}>▦  Leer QR de factura</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      <Text style={styles.label}>Guardar en</Text>
+      <View style={styles.optionRow}>
+        {(['personal', 'family'] as const).map((option) => (
+          <TouchableOpacity key={option} style={[styles.option, scope === option && styles.activeOption]} onPress={() => setScope(option)}>
+            <Text style={[styles.optionText, scope === option && styles.activeOptionText]}>{option === 'personal' ? 'Personal' : 'Familiar'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.typeButton, type === 'expense' && styles.expenseActive]}
-            onPress={() => setType('expense')}
-          >
-            <Text style={[styles.typeText, type === 'expense' && styles.typeTextActive]}>- Gasto</Text>
-          </TouchableOpacity>
+        ))}
+      </View>
+
+      {scope === 'family' ? loadingFamilies ? (
+        <ActivityIndicator color="#007AFF" />
+      ) : families.length > 0 ? (
+        <View style={styles.categoryList}>
+          {families.map((family) => (
+            <TouchableOpacity key={family.id} style={[styles.category, familyId === family.id && styles.activeOption]} onPress={() => setFamilyId(family.id)}>
+              <Text style={[styles.optionText, familyId === family.id && styles.activeOptionText]}>{family.name}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-
-        <TouchableOpacity
-          style={styles.qrButton}
-          onPress={() => {
-            setScanned(false);
-            setIsScanning(true);
-          }}
-        >
-          <Text style={styles.qrButtonText}>📷 Escanear Factura con QR</Text>
+      ) : (
+        <TouchableOpacity onPress={() => navigation.navigate('FamilyGroup')}>
+          <Text style={styles.linkText}>Crea un grupo familiar para continuar.</Text>
         </TouchableOpacity>
+      ) : null}
 
-        <Text style={styles.label}>Descripción</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej. Salario, Supermercado..."
-          value={title}
-          onChangeText={setTitle}
-        />
+      <Text style={styles.label}>Categoría</Text>
+      {loadingCategories ? <ActivityIndicator color="#007AFF" /> : categories.length === 0 ? (
+        <Text style={styles.helperText}>No hay categorías. Revisa que el esquema de Supabase esté configurado.</Text>
+      ) : (
+        <View style={styles.categoryList}>
+          {categories.map((category) => (
+            <TouchableOpacity key={category.id} style={[styles.category, categoryId === category.id && styles.activeOption]} onPress={() => setCategoryId(category.id)}>
+              <Text style={[styles.optionText, categoryId === category.id && styles.activeOptionText]}>{category.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
-        <Text style={styles.label}>Monto</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej. 50000"
-          keyboardType="numeric"
-          value={amount}
-          onChangeText={setAmount}
-        />
+      <Text style={styles.helperText}>
+        {scope === 'family' ? 'El movimiento será visible para los integrantes del grupo.' : 'El movimiento será personal.'}
+      </Text>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Guardar</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>Cancelar</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      <TouchableOpacity
+        style={[styles.saveButton, (saving || loadingCategories || !categoryId || (scope === 'family' && (loadingFamilies || !familyId))) && styles.disabledButton]}
+        onPress={() => { void handleSave(); }}
+        disabled={saving || loadingCategories || !categoryId || (scope === 'family' && (loadingFamilies || !familyId))}
+      >
+        <Text style={styles.saveButtonText}>{saving ? 'Guardando...' : 'Guardar movimiento'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0f172a',
-  },
-  balanceBadge: {
-    marginTop: 4,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0284c7',
-  },
-  formContainer: {
-    padding: 20,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  typeButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  incomeActive: {
-    backgroundColor: '#16a34a',
-    borderColor: '#16a34a',
-  },
-  expenseActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  typeText: {
-    fontWeight: 'bold',
-    color: '#475569',
-  },
-  typeTextActive: {
-    color: '#fff',
-  },
-  qrButton: {
-    backgroundColor: '#0f172a',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  qrButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  label: {
-    color: '#334155',
-    marginBottom: 6,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#fff',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    fontSize: 16,
-  },
-  saveButton: {
-    backgroundColor: '#22c55e',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  backButton: {
-    padding: 14,
-    alignItems: 'center',
-  },
-  backButtonText: {
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  scannerOverlay: {
-    flex: 1,
-    justifyContent: 'space-between',
-    padding: 40,
-    alignItems: 'center',
-  },
-  scannerInstruction: {
-    color: '#fff',
-    fontSize: 16,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 40,
-  },
-  cancelScanButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-    marginBottom: 30,
-  },
-  cancelScanText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+  container: { flexGrow: 1, padding: 20, backgroundColor: '#F8F9FA' },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 18 },
+  label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  input: { borderWidth: 1, borderColor: '#CCC', padding: 12, borderRadius: 8, marginBottom: 16, backgroundColor: '#FFF' },
+  optionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  option: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, padding: 11 },
+  activeOption: { backgroundColor: '#007AFF' },
+  optionText: { color: '#007AFF', fontWeight: '600' },
+  activeOptionText: { color: '#FFF' },
+  qrButton: { backgroundColor: '#0F766E', padding: 13, borderRadius: 9, alignItems: 'center', marginBottom: 16 },
+  qrButtonText: { color: '#FFF', fontWeight: 'bold' },
+  categoryList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  category: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 12 },
+  linkText: { color: '#007AFF', marginBottom: 16 },
+  helperText: { color: '#666', marginBottom: 14 },
+  saveButton: { backgroundColor: '#007AFF', padding: 15, borderRadius: 8, alignItems: 'center' },
+  disabledButton: { opacity: 0.55 },
+  saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  scannerContainer: { flex: 1, backgroundColor: '#000' },
+  scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 80, backgroundColor: 'rgba(0,0,0,0.18)' },
+  scannerInstruction: { color: '#FFF', fontSize: 17, fontWeight: 'bold', textAlign: 'center' },
+  scanFrame: { width: 250, height: 250, borderWidth: 3, borderColor: '#FFF', borderRadius: 24, backgroundColor: 'transparent' },
+  cancelScanButton: { backgroundColor: '#FFF', borderRadius: 24, paddingVertical: 12, paddingHorizontal: 24 },
+  cancelScanText: { color: '#1F2937', fontWeight: 'bold' },
 });
+
+export default AddTransactionScreen;

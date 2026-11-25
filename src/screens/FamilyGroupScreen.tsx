@@ -1,337 +1,199 @@
-import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  FlatList, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  Modal, 
-  TextInput, 
-  Alert 
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import { Family, FamilyMember, RootStackParamList } from '../types';
+import { createFamily, listFamilies, listFamilyMembers } from '../services/familyService';
 
-interface FamilyMember {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Administrador' | 'Miembro';
-}
+type Props = NativeStackScreenProps<RootStackParamList, 'FamilyGroup'>;
 
-export default function FamilyGroupScreen() {
+const FamilyGroupScreen: React.FC<Props> = () => {
+  const [families, setFamilies] = useState<Family[]>([]);
+  const [selectedFamilyId, setSelectedFamilyId] = useState('');
   const [members, setMembers] = useState<FamilyMember[]>([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [nameInput, setNameInput] = useState('');
-  const [emailInput, setEmailInput] = useState('');
+  const [familyName, setFamilyName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleAddMember = () => {
-    if (!nameInput.trim() || !emailInput.trim()) {
-      Alert.alert("Campos incompletos", "Por favor ingresa el nombre y el correo electrónico.");
+  const loadMembers = useCallback(async (familyId: string) => {
+    setSelectedFamilyId(familyId);
+    setMembers(await listFamilyMembers(familyId));
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+
+      listFamilies()
+        .then(async (result) => {
+          if (!active) {
+            return;
+          }
+          setFamilies(result);
+          const selected = result.find((family) => family.id === selectedFamilyId) ?? result[0];
+          if (selected) {
+            const familyMembers = await listFamilyMembers(selected.id);
+            if (active) {
+              setSelectedFamilyId(selected.id);
+              setMembers(familyMembers);
+            }
+          } else {
+            setSelectedFamilyId('');
+            setMembers([]);
+          }
+        })
+        .catch((error: unknown) => {
+          if (active) {
+            Alert.alert(
+              'No se pudieron cargar los grupos',
+              error instanceof Error ? error.message : 'Verifica la conexión con Supabase.',
+            );
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setLoading(false);
+          }
+        });
+
+      return () => {
+        active = false;
+      };
+    }, [selectedFamilyId]),
+  );
+
+  const handleCreate = async (): Promise<void> => {
+    const name = familyName.trim();
+    if (name.length < 2 || name.length > 100) {
+      Alert.alert('Nombre inválido', 'Escribe un nombre de entre 2 y 100 caracteres.');
       return;
     }
 
-    const newMember: FamilyMember = {
-      id: Date.now().toString(),
-      name: nameInput.trim(),
-      email: emailInput.trim(),
-      role: members.length === 0 ? 'Administrador' : 'Miembro',
-    };
-
-    setMembers((prevMembers) => [...prevMembers, newMember]);
-    setNameInput('');
-    setEmailInput('');
-    setModalVisible(false);
-    Alert.alert("Éxito", "Invitación enviada y miembro agregado correctamente.");
-  };
-
-  const handleRemoveMember = (id: string, name: string) => {
-    Alert.alert(
-      "Eliminar miembro",
-      `¿Estás seguro de que deseas eliminar a ${name} del grupo familiar?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Eliminar", 
-          style: "destructive", 
-          onPress: () => {
-            setMembers((prevMembers) => prevMembers.filter((item) => item.id !== id));
-          } 
-        }
-      ]
-    );
+    setSaving(true);
+    try {
+      const family = await createFamily(name);
+      setFamilyName('');
+      const updatedFamilies = await listFamilies();
+      setFamilies(updatedFamilies);
+      await loadMembers(family.id);
+      Alert.alert('Grupo creado', `“${family.name}” ya está guardado en Supabase.`);
+    } catch (error: unknown) {
+      Alert.alert(
+        'No se pudo completar la operación',
+        error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.title}>Administración de Grupo Familiar</Text>
-      </View>
-
-      {members.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No hay miembros en el grupo familiar.</Text>
-          <Text style={styles.emptySubText}>Pulsa el botón de abajo para invitar a un nuevo miembro.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={members}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.memberCard}>
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{item.name}</Text>
-                <Text style={styles.memberEmail}>{item.email}</Text>
-                <Text style={[styles.memberRole, item.role === 'Administrador' ? styles.adminText : styles.memberText]}>
-                  {item.role}
-                </Text>
-              </View>
-
-              {/* Botón explícito para eliminar */}
-              <TouchableOpacity 
-                style={styles.deleteButton} 
-                onPress={() => handleRemoveMember(item.id, item.name)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.deleteButtonText}>Eliminar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          contentContainerStyle={styles.listContainer}
+    <View style={styles.container}>
+      <Text style={styles.title}>Grupos familiares</Text>
+      <View style={styles.createRow}>
+        <TextInput
+          style={styles.input}
+          placeholder="Nombre del grupo"
+          value={familyName}
+          onChangeText={setFamilyName}
+          maxLength={100}
         />
-      )}
-
-      <View style={styles.footerContainer}>
-        <TouchableOpacity style={styles.inviteButton} onPress={() => setModalVisible(true)}>
-          <Text style={styles.inviteButtonText}>+ Invitar miembro de la familia</Text>
+        <TouchableOpacity
+          style={[styles.createButton, saving && styles.disabled]}
+          onPress={handleCreate}
+          disabled={saving}
+        >
+          <Text style={styles.createButtonText}>{saving ? '...' : 'Crear'}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Modal para ingresar los datos del nuevo miembro */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Invitar Familiar</Text>
-            <Text style={styles.modalSubtitle}>Ingresa los datos del nuevo integrante:</Text>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre completo"
-              placeholderTextColor="#888"
-              value={nameInput}
-              onChangeText={setNameInput}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Correo electrónico"
-              placeholderTextColor="#888"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={emailInput}
-              onChangeText={setEmailInput}
-            />
-
-            <View style={styles.modalButtonsContainer}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => setModalVisible(false)}
+      {loading ? (
+        <ActivityIndicator size="large" color="#007AFF" />
+      ) : (
+        <>
+          <Text style={styles.sectionTitle}>Mis grupos</Text>
+          <FlatList
+            horizontal
+            data={families}
+            keyExtractor={(family) => family.id}
+            ListEmptyComponent={<Text style={styles.emptyText}>Aún no tienes grupos.</Text>}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.familyChip, selectedFamilyId === item.id && styles.selectedChip]}
+                onPress={() => {
+                  loadMembers(item.id).catch((error: unknown) => {
+                    Alert.alert(
+                      'No se pudieron cargar los integrantes',
+                      error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+                    );
+                  });
+                }}
               >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                <Text style={[styles.familyName, selectedFamilyId === item.id && styles.selectedText]}>
+                  {item.name}
+                </Text>
               </TouchableOpacity>
+            )}
+          />
 
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.confirmButton]} 
-                onPress={handleAddMember}
-              >
-                <Text style={styles.confirmButtonText}>Enviar Invitación</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+          {selectedFamilyId ? (
+            <>
+              <Text style={styles.sectionTitle}>Integrantes</Text>
+              <FlatList
+                data={members}
+                keyExtractor={(member) => member.id}
+                ListEmptyComponent={<Text style={styles.emptyText}>No se encontraron integrantes.</Text>}
+                renderItem={({ item }) => (
+                  <View style={styles.memberCard}>
+                    <Text style={styles.memberName}>{item.name}</Text>
+                    <Text style={styles.memberRole}>
+                      {item.role === 'Admin' ? 'Administrador' : 'Integrante'}
+                    </Text>
+                  </View>
+                )}
+              />
+            </>
+          ) : null}
+        </>
+      )}
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  listContainer: {
-    paddingHorizontal: 20,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  emptySubText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 5,
-  },
+  container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16 },
+  createRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  input: { flex: 1, borderWidth: 1, borderColor: '#CCC', padding: 12, borderRadius: 8 },
+  createButton: { backgroundColor: '#28A745', paddingHorizontal: 18, justifyContent: 'center', borderRadius: 8 },
+  createButtonText: { color: '#FFF', fontWeight: 'bold' },
+  disabled: { opacity: 0.6 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, marginTop: 8 },
+  familyChip: { borderWidth: 1, borderColor: '#007AFF', padding: 12, borderRadius: 20, marginRight: 8 },
+  selectedChip: { backgroundColor: '#007AFF' },
+  familyName: { color: '#007AFF', fontWeight: '600' },
+  selectedText: { color: '#FFF' },
+  emptyText: { color: '#666', marginVertical: 12 },
   memberCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  memberInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  memberName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  memberEmail: {
-    fontSize: 13,
-    color: '#666',
-    marginTop: 2,
-  },
-  memberRole: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  adminText: {
-    color: '#007AFF',
-  },
-  memberText: {
-    color: '#666',
-  },
-  deleteButton: {
-    backgroundColor: '#ffebee',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#ffcdd2',
-  },
-  deleteButtonText: {
-    color: '#c62828',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  footerContainer: {
-    padding: 20,
-    backgroundColor: 'transparent',
-  },
-  inviteButton: {
-    backgroundColor: '#28a745',
+    padding: 15,
+    backgroundColor: '#FFF',
     borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
+    marginBottom: 10,
   },
-  inviteButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 22,
-    width: '100%',
-    maxWidth: 340,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
-  },
-  input: {
-    backgroundColor: '#f9f9f9',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    marginBottom: 12,
-    color: '#333',
-  },
-  modalButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f1f1f1',
-    marginRight: 8,
-  },
-  cancelButtonText: {
-    color: '#555',
-    fontWeight: '600',
-  },
-  confirmButton: {
-    backgroundColor: '#28a745',
-    marginLeft: 8,
-  },
-  confirmButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  memberName: { fontSize: 16, fontWeight: '500' },
+  memberRole: { fontSize: 14, color: '#666' },
 });
+
+export default FamilyGroupScreen;
