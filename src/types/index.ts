@@ -29,6 +29,15 @@ export interface UserRegisterForm {
 }
 
 export type TransactionType = 'Personal' | 'Family';
+export type TransactionKind = 'expense' | 'income';
+export type TransactionScope = 'personal' | 'family';
+
+export interface Category {
+  id: string;
+  name: string;
+  kind: TransactionKind;
+  icon?: string | null;
+}
 
 export interface Transaction {
   id: string;
@@ -37,10 +46,17 @@ export interface Transaction {
   category: string;
   type: TransactionType;
   date: string;
+  transactionType: TransactionKind;
+  familyId: string | null;
 }
 
 export interface FamilyMember {
   id: string;
   name: string;
   role: 'Admin' | 'Member';
+}
+
+export interface Family {
+  id: string;
+  name: string;
 }
