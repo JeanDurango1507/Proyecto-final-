@@ -16,14 +16,14 @@ SincroFin permite crear una cuenta, iniciar sesión, registrar ingresos y gastos
 
 1. Completa `.env` y configura Supabase siguiendo `SUPABASE_SETUP.md`.
 2. Ejecuta el esquema SQL o las migraciones pendientes; en particular debe existir `get_transaction_summary()`.
-3. Abre en VS Code la carpeta del repositorio que contiene `package.json` y ejecuta `npm run start:lan`.
-4. Conecta el celular a la misma red Wi-Fi, instala Expo Go compatible con el SDK 54 y escanea el QR. En iPhone físico, Expo Go y la terminal deben usar la misma cuenta Expo. Si Supabase pide confirmar el correo, hazlo antes de presentar.
+3. Para presentar con Expo Go, abre en VS Code la carpeta del repositorio y ejecuta `npm run start:lan` cuando el computador y el teléfono compartan Wi-Fi. Desde redes distintas ejecuta `npm run start:tunnel`; el computador debe seguir encendido y conectado a Internet.
+4. Para presentar sin depender del computador, instala la compilación APK/IPA que se genera con EAS. La app instalada se conecta por Internet a Supabase. En iPhone, Expo Go y la terminal deben usar la misma cuenta Expo. Si Supabase pide confirmar el correo, hazlo antes de presentar.
 5. Registra al menos un ingreso y un gasto con categorías distintas.
 6. Crea un grupo familiar y guarda un movimiento familiar.
 7. Cierra y vuelve a abrir la app o desliza la lista hacia abajo para mostrar que los datos vuelven a consultarse desde el servicio.
 8. En un gasto, prueba el lector de facturas con un QR JSON que contenga `{"title":"Compra del mercado","amount":24500}`; revisa los datos y confirma el guardado.
 
-La API Express es un servicio opcional; el flujo móvil principal consulta Supabase directamente con su SDK. El ZIP de intercambio no incluye `.env`; la copia local preparada conserva la configuración del proyecto original y no se debe compartir como archivo público.
+La API Express es un servicio opcional; el flujo móvil principal consulta Supabase directamente con su SDK. `.env` no se publica en GitHub; configura las variables de EAS para compilar versiones instalables.
 
 ## Recorrido sugerido de demostración
 
