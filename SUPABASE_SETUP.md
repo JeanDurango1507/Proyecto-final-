@@ -5,7 +5,7 @@
 1. Copia `.env.example` como `.env` en la carpeta principal.
 2. En Supabase, crea un proyecto y copia la URL y la clave publicable (anon) a esas dos variables.
 3. En el SQL Editor de Supabase, ejecuta una sola vez `supabase/schema.sql` para una base nueva.
-4. Para una base existente, ejecuta las migraciones pendientes de `supabase/` en orden numérico. `002_categories_kind.sql` prepara las categorías, `003_transaction_summary.sql` agrega el resumen del inicio y `004_create_family_atomic.sql` hace atómica la creación de grupos.
+4. Para una base existente, ejecuta las migraciones pendientes de `supabase/` en orden numérico. `002_categories_kind.sql` prepara las categorías, `003_transaction_summary.sql` agrega el resumen del inicio, `004_create_family_atomic.sql` hace atómica la creación de grupos y `005_family_helper_privileges.sql` restringe las funciones de grupos a usuarios autenticados.
 5. Desde la carpeta principal ejecuta `npm install` y luego `npm run start:lan`.
 6. Conecta el teléfono a la misma red Wi-Fi. En iPhone usa Expo Go de App Store e inicia sesión con la misma cuenta Expo que usa la terminal. En Android instala una versión de Expo Go compatible con SDK 54 desde [expo.dev/go](https://expo.dev/go) si la versión de Play Store no abre el proyecto. Escanea el QR que muestra la terminal de VS Code.
 
