@@ -22,6 +22,19 @@ La carpeta `api/` contiene rutas REST para salud, acceso y movimientos. Para eje
 
 Para consumirla desde un navegador local, ajusta `CORS_ORIGINS` a su origen. Una app móvil nativa no usa CORS. Las rutas de movimientos requieren `Authorization: Bearer <access_token>` y delegan la autorización en las políticas RLS de Supabase.
 
+## App instalable para usar desde cualquier red
+
+Expo Go sirve para desarrollo: el teléfono descarga el código desde Metro. Si el computador y el celular no están en la misma Wi-Fi, inicia el túnel incluido con `npm run start:tunnel`. El computador debe permanecer encendido y conectado a Internet mientras usas esa sesión; el enlace del túnel es público mientras el proceso esté abierto y puede ser más lento que LAN.
+
+Para instalar una app que no dependa del servidor Expo del computador, usa EAS Build. El archivo `eas.json` incluye un perfil Preview para APK Android y un perfil Production para tienda. Antes de compilar:
+
+1. Inicia sesión o crea una cuenta Expo con `npx eas-cli login`.
+2. Enlaza este proyecto con tu cuenta mediante `npx eas-cli init`.
+3. En el panel de Expo, crea `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` en los entornos `preview` y `production`.
+4. Genera el instalador con `npm run build:android:apk` o `npm run build:ios:preview`.
+
+El APK/IPA contiene el código de la app y funciona sin LAN ni Metro. Sigue necesitando Internet para iniciar sesión y sincronizar los datos con Supabase. La distribución iOS interna requiere cuenta y firma de Apple; para iPhone también se puede distribuir por TestFlight.
+
 ## Protección de credenciales
 
 - No publiques `.env` ni claves privadas.
@@ -31,8 +44,8 @@ Para consumirla desde un navegador local, ajusta `CORS_ORIGINS` a su origen. Una
 
 ## QR y conexión desde el celular
 
-Abre en VS Code la carpeta del repositorio que contiene este archivo y `package.json`. Desde la terminal integrada ejecuta `npm run start:lan` y escanea el QR. El teléfono y el computador deben estar en la misma red. El QR en modo LAN no publica el servidor en Internet.
+Abre en VS Code la carpeta del repositorio que contiene este archivo y `package.json`. Ejecuta `npm run start:lan` y escanea el QR si ambos equipos están en la misma red. Para probar desde una red distinta, ejecuta `npm run start:tunnel` y escanea el nuevo QR; el servidor debe permanecer activo en el computador. Para una app que se abra sin Metro, instala la compilación EAS descrita arriba.
 
-El proyecto está fijado en Expo SDK 54 para abrirse con Expo Go de App Store en iOS. En un iPhone físico, Expo Go y la terminal deben usar la misma cuenta Expo. En Android, instala Expo Go compatible con SDK 54 si la versión de Play Store no coincide. Si la red bloquea la conexión LAN, ejecuta `npm run start:tunnel`; el túnel suele ser más lento. La cámara y el escáner de facturas funcionan en dispositivos físicos iOS y Android.
+El proyecto está fijado en Expo SDK 54 para abrirse con Expo Go de App Store en iOS. En un iPhone físico, Expo Go y la terminal deben usar la misma cuenta Expo. En Android, instala Expo Go compatible con SDK 54 si la versión de Play Store no coincide. La cámara y el escáner de facturas funcionan en dispositivos físicos iOS y Android.
 
 El desbloqueo biométrico es opcional y se activa después de iniciar sesión en Android o en una compilación nativa de iOS. Face ID no está disponible en Expo Go para iOS; la sesión de Supabase igual queda guardada en almacenamiento seguro.
