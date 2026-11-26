@@ -43,3 +43,5 @@ npm run build:ios:preview
 ```
 
 Configura `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` también en los entornos Preview y Production de EAS. La API Express no hace falta para compilar ni para conectar la app móvil.
+
+El APK Android de prueba de la versión 1.0.0 se descarga desde [GitHub Releases](https://github.com/JeanDurango1507/Proyecto-final-/releases/tag/sincrofin-android-preview-1).
