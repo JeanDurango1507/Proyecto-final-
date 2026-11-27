@@ -251,10 +251,10 @@ const AddTransactionScreen: React.FC<Props> = ({ navigation }) => {
       <Text style={styles.title}>Nuevo movimiento</Text>
 
       <Text style={styles.label}>Descripción</Text>
-      <TextInput style={styles.input} placeholder="Ej. Compra del mercado" value={title} onChangeText={setTitle} maxLength={160} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Ej. Compra del mercado" value={title} onChangeText={setTitle} maxLength={160} />
 
       <Text style={styles.label}>Monto</Text>
-      <TextInput style={styles.input} placeholder="$0,00" keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="$0,00" keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
 
       <Text style={styles.label}>Tipo</Text>
       <View style={styles.optionRow}>
@@ -327,8 +327,16 @@ const AddTransactionScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: 20, backgroundColor: '#F8F9FA' },
   title: { fontSize: 22, fontWeight: 'bold', marginBottom: 18 },
-  label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: '#CCC', padding: 12, borderRadius: 8, marginBottom: 16, backgroundColor: '#FFF' },
+  label: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: '#111827' },
+  input: {
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
   optionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   option: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, padding: 11 },
   activeOption: { backgroundColor: '#007AFF' },

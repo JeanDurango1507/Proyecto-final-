@@ -95,12 +95,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       <Text style={styles.title}>Crear cuenta</Text>
       <Text style={styles.subtitle}>Usa tu correo institucional para guardar tus datos.</Text>
 
-      <TextInput style={styles.input} placeholder="Nombre" value={formData.firstName} onChangeText={(text) => handleChange('firstName', text)} maxLength={80} />
-      <TextInput style={styles.input} placeholder="Apellido" value={formData.lastName} onChangeText={(text) => handleChange('lastName', text)} maxLength={80} />
-      <TextInput style={styles.input} placeholder="Documento de identidad" keyboardType="number-pad" value={formData.documentId} onChangeText={(text) => handleChange('documentId', text)} maxLength={15} />
-      <TextInput style={styles.input} placeholder="Número de teléfono" keyboardType="phone-pad" value={formData.phoneNumber} onChangeText={(text) => handleChange('phoneNumber', text)} maxLength={20} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Nombre" value={formData.firstName} onChangeText={(text) => handleChange('firstName', text)} maxLength={80} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Apellido" value={formData.lastName} onChangeText={(text) => handleChange('lastName', text)} maxLength={80} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Documento de identidad" keyboardType="number-pad" value={formData.documentId} onChangeText={(text) => handleChange('documentId', text)} maxLength={15} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Número de teléfono" keyboardType="phone-pad" value={formData.phoneNumber} onChangeText={(text) => handleChange('phoneNumber', text)} maxLength={20} />
       <TextInput
         style={styles.input}
+        placeholderTextColor="#6B7280"
         placeholder="Correo institucional"
         keyboardType="email-address"
         autoCapitalize="none"
@@ -109,8 +110,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         onChangeText={(text) => handleChange('email', text)}
         maxLength={254}
       />
-      <TextInput style={styles.input} placeholder="Contraseña (mínimo 8 caracteres)" secureTextEntry value={formData.password} onChangeText={(text) => handleChange('password', text)} maxLength={128} />
-      <TextInput style={styles.input} placeholder="Confirmar contraseña" secureTextEntry value={formData.confirmPassword} onChangeText={(text) => handleChange('confirmPassword', text)} maxLength={128} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Contraseña (mínimo 8 caracteres)" secureTextEntry value={formData.password} onChangeText={(text) => handleChange('password', text)} maxLength={128} />
+      <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Confirmar contraseña" secureTextEntry value={formData.confirmPassword} onChangeText={(text) => handleChange('confirmPassword', text)} maxLength={128} />
 
       <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={() => { void handleRegister(); }} disabled={loading}>
         {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Registrarse</Text>}
@@ -123,7 +124,15 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: 20, justifyContent: 'center' },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
   subtitle: { color: '#666', textAlign: 'center', marginBottom: 18 },
-  input: { borderWidth: 1, borderColor: '#CCC', padding: 12, borderRadius: 8, marginBottom: 12 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
   button: { backgroundColor: '#28A745', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   buttonDisabled: { opacity: 0.65 },
   buttonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },

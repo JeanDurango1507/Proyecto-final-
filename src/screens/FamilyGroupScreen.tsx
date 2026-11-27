@@ -104,6 +104,7 @@ const FamilyGroupScreen: React.FC<Props> = () => {
         <TextInput
           style={styles.input}
           placeholder="Nombre del grupo"
+          placeholderTextColor="#6B7280"
           value={familyName}
           onChangeText={setFamilyName}
           maxLength={100}
@@ -174,7 +175,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' },
   title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16 },
   createRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  input: { flex: 1, borderWidth: 1, borderColor: '#CCC', padding: 12, borderRadius: 8 },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+    padding: 12,
+    borderRadius: 8,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
   createButton: { backgroundColor: '#28A745', paddingHorizontal: 18, justifyContent: 'center', borderRadius: 8 },
   createButtonText: { color: '#FFF', fontWeight: 'bold' },
   disabled: { opacity: 0.6 },
